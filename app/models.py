@@ -49,7 +49,7 @@ class ReviewDecision(str, Enum):
 class ReviewInput(BaseModel):
     decision: ReviewDecision
     reviewer: str = Field(min_length=1, max_length=100)
-    note: Optional[str] = None
+    note: Optional[str] = Field(default=None, max_length=2000)
 
 
 class IntakeRecord(BaseModel):
@@ -64,3 +64,4 @@ class IntakeRecord(BaseModel):
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
+    reviewed_at: Optional[datetime] = None
