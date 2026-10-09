@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, status
 
-from app.classifier import classify_request
+from app.classifier import ClassificationError, get_classifier
 from app.models import (
     IntakeCreate,
     IntakeRecord,
@@ -16,9 +16,11 @@ from app.store import store
 
 app = FastAPI(
     title="AI Intake Review Workflow",
-    description="Deterministic request classification with human-controlled decisions.",
-    version="0.2.0",
+    description="Structured request classification with human-controlled decisions.",
+    version="0.3.0",
 )
+
+classifier = get_classifier()
 
 
 @app.post("/intakes", response_model=IntakeRecord, status_code=status.HTTP_201_CREATED)
@@ -26,7 +28,15 @@ def create_intake(payload: IntakeCreate) -> IntakeRecord:
     record = IntakeRecord(**payload.model_dump())
 
     # Classification provides advice only; application code owns this transition.
-    record.classification = classify_request(record.subject, record.details)
+    try:
+        classification = classifier(record.subject, record.details)
+    except ClassificationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Classification service unavailable",
+        ) from exc
+
+    record.classification = classification
     record.status = WorkflowStatus.AWAITING_REVIEW
     return store.save(record)
 

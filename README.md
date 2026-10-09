@@ -1,12 +1,12 @@
 # AI Intake Review Workflow
 
-A small FastAPI portfolio project showing how AI-ready classification can fit into a normal business process without giving the classifier authority over important decisions.
+A small FastAPI portfolio project showing how deterministic or OpenAI-backed classification can fit into a normal business process without giving the classifier authority over important decisions.
 
 This is an educational demonstration, not production software.
 
 ## What it demonstrates
 
-A requester submits a business request. The application records it, asks an isolated deterministic classifier for a category, priority, summary, and recommended action, then moves it to `awaiting_review`. A human reviewer makes the final approve or reject decision.
+A requester submits a business request. The application asks the selected classifier for a category, priority, summary, and recommended action, then records the request as `awaiting_review`. A human reviewer makes the final approve or reject decision.
 
 The control boundary is intentional:
 
@@ -16,24 +16,27 @@ The control boundary is intentional:
 
 ```text
 POST /intakes
-    submitted -> deterministic classification -> awaiting_review
-                                                    |
-                                  human approves ---+---> approved
-                                  human rejects  ---+---> rejected
+    submitted -> classification -> awaiting_review
+                                       |
+                     human approves ---+---> approved
+                     human rejects  ---+---> rejected
 ```
 
 Completed records retain the original request, structured classification, workflow status, reviewer, optional review note, creation time, and review time.
 
-## Why version one is deterministic
+## Classification backends
 
-`app/classifier.py` uses understandable keyword rules instead of an external AI provider. This makes the behavior repeatable, testable, and runnable without API keys or network services. The classifier returns only structured advice and has no access to the persistence layer or workflow status.
+Deterministic classification remains the default. `app/classifier.py` uses understandable keyword rules, making local behavior repeatable and runnable without API keys or network services.
 
-A future LLM-backed implementation can replace `classify_request` while keeping the same `AIClassification` output contract. The routes and review rules can remain responsible for state changes, so an LLM still cannot approve or reject a request.
+OpenAI classification is optional. It uses the Responses API structured-output parsing support to produce the same validated `AIClassification` contract: `category`, `priority`, `summary`, and `recommended_action`. The OpenAI model receives only the request subject and details. It cannot modify workflow state, approve or reject an intake, access reviewer information, or access persistence.
+
+Classification must succeed before the application changes the intake to `awaiting_review` and saves it. If OpenAI classification fails or returns invalid output, the API returns HTTP 503 and does not save the intake.
 
 ## Technology
 
 - Python 3.11
 - FastAPI and Pydantic
+- OpenAI Python SDK and Responses API structured outputs
 - In-memory persistence
 - pytest and FastAPI TestClient
 - Uvicorn for local development
@@ -49,7 +52,7 @@ Interactive API documentation is available at `/docs` while the application is r
 ## Current limitations
 
 - Persistence is in memory and resets when the application restarts.
-- Classification is deterministic and keyword based.
+- Deterministic classification is keyword based; optional OpenAI classification requires API access.
 - Reviewer identity is supplied by the request and is not authenticated in this version.
 - This is a portfolio demonstration, not production software.
 
@@ -77,6 +80,30 @@ Install the dependencies:
 
 ```shell
 pip install -r requirements.txt
+```
+
+The deterministic classifier is used by default, so no API key is required:
+
+```text
+CLASSIFIER_BACKEND=deterministic
+```
+
+To use OpenAI classification, set `CLASSIFIER_BACKEND=openai` and provide `OPENAI_API_KEY` through the environment. `OPENAI_MODEL` is optional and defaults to `gpt-6-luna`. Never place a real API key in source code or commit it to the repository.
+
+Windows PowerShell example:
+
+```powershell
+$env:CLASSIFIER_BACKEND = "openai"
+$env:OPENAI_API_KEY = "your-api-key"
+$env:OPENAI_MODEL = "gpt-6-luna"
+```
+
+macOS/Linux example:
+
+```shell
+export CLASSIFIER_BACKEND=openai
+export OPENAI_API_KEY=your-api-key
+export OPENAI_MODEL=gpt-6-luna
 ```
 
 Run the tests:

@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class WorkflowStatus(str, Enum):
@@ -35,10 +35,12 @@ class IntakeCreate(BaseModel):
 
 
 class AIClassification(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     category: Category
     priority: Priority
-    summary: str
-    recommended_action: str
+    summary: str = Field(min_length=1)
+    recommended_action: str = Field(min_length=1)
 
 
 class ReviewDecision(str, Enum):

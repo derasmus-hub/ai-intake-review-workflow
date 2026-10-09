@@ -1,4 +1,18 @@
+import os
+from collections.abc import Callable
+
 from app.models import AIClassification, Category, Priority
+
+
+Classifier = Callable[[str, str], AIClassification]
+
+
+class ClassificationError(RuntimeError):
+    """Raised when a configured classifier cannot produce a valid result."""
+
+
+class ClassifierConfigurationError(RuntimeError):
+    """Raised when classifier environment configuration is invalid."""
 
 
 CATEGORY_KEYWORDS: tuple[tuple[Category, tuple[str, ...]], ...] = (
@@ -47,4 +61,28 @@ def classify_request(subject: str, details: str) -> AIClassification:
         priority=priority,
         summary=summary,
         recommended_action=RECOMMENDED_ACTIONS[category],
+    )
+
+
+def get_classifier() -> Classifier:
+    """Select the configured classifier without changing workflow state."""
+    backend = os.getenv("CLASSIFIER_BACKEND", "deterministic").strip().lower()
+
+    if backend == "deterministic":
+        return classify_request
+
+    if backend == "openai":
+        api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+        if not api_key:
+            raise ClassifierConfigurationError(
+                "OPENAI_API_KEY is required when CLASSIFIER_BACKEND=openai"
+            )
+
+        from app.llm_classifier import OpenAIClassifier
+
+        model = (os.getenv("OPENAI_MODEL") or "").strip() or "gpt-6-luna"
+        return OpenAIClassifier(api_key=api_key, model=model)
+
+    raise ClassifierConfigurationError(
+        "CLASSIFIER_BACKEND must be either 'deterministic' or 'openai'"
     )
