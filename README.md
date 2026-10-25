@@ -55,40 +55,21 @@ Interactive API documentation is available at `/docs` while the application is r
 
 ## Run locally
 
-Create a virtual environment:
+The development convention in `AGENTS.md` runs Python inside a Docker container named `ai-intake-dev`, with this repository mounted at `/workspace`. From the repository directory:
 
-```shell
-python -m venv .venv
+```sh
+docker run -d --name ai-intake-dev -p 8000:8000 -v "${PWD}:/workspace" -w /workspace python:3.11-slim sleep infinity
+docker exec ai-intake-dev pip install -r requirements.txt
+docker exec ai-intake-dev pytest -q
+docker exec ai-intake-dev uvicorn app.main:app --host 0.0.0.0
 ```
 
-Activate it on Windows PowerShell:
+In Windows PowerShell, use the same commands with `${PWD}` expanding to the repository path. If the named container already exists, start and reuse it rather than creating another. API documentation is available at http://127.0.0.1:8000/docs. Stop the container with `docker stop ai-intake-dev` when finished.
 
-```powershell
-.\.venv\Scripts\Activate.ps1
-```
+## Verification and design boundaries
 
-Or activate it on macOS/Linux:
+GitHub Actions runs pytest inside the same named-container convention. Tests cover API validation, classification output, retrieval, approve/reject decisions, terminal-state conflicts, and blank-field rejection. Classification remains a deterministic keyword demonstration: category selection uses the first matching category in the configured order, priority uses high before low, and summaries normalize whitespace before truncation. This is not semantic reasoning or a measured classifier evaluation.
 
-```shell
-source .venv/bin/activate
-```
+The review endpoint does not authenticate the caller. A supplied reviewer name is metadata, not verified identity. The in-memory store is process-local, has no transactional concurrency protection, and is unsuitable for multi-worker deployment. Reviewer timestamps do not constitute an immutable audit log.
 
-Install the dependencies:
-
-```shell
-pip install -r requirements.txt
-```
-
-Run the tests:
-
-```shell
-pytest -q
-```
-
-Start the API:
-
-```shell
-uvicorn app.main:app --reload
-```
-
-Interactive API documentation is available at http://127.0.0.1:8000/docs.
+A future external classifier would need schema validation, failure handling, and evaluation before being treated as a working integration. No such integration is claimed here.

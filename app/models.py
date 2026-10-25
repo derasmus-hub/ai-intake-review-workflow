@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class WorkflowStatus(str, Enum):
@@ -33,6 +33,13 @@ class IntakeCreate(BaseModel):
     subject: str = Field(min_length=1, max_length=200)
     details: str = Field(min_length=1, max_length=5000)
 
+    @field_validator('requester', 'subject', 'details')
+    @classmethod
+    def reject_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError('must contain non-whitespace characters')
+        return value
+
 
 class AIClassification(BaseModel):
     category: Category
@@ -51,6 +58,13 @@ class ReviewInput(BaseModel):
     reviewer: str = Field(min_length=1, max_length=100)
     note: Optional[str] = Field(default=None, max_length=2000)
 
+    @field_validator('reviewer')
+    @classmethod
+    def reject_blank_reviewer(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError('reviewer must contain non-whitespace characters')
+        return value
+
 
 class IntakeRecord(BaseModel):
     id: UUID = Field(default_factory=uuid4)
@@ -65,3 +79,4 @@ class IntakeRecord(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc)
     )
     reviewed_at: Optional[datetime] = None
+

@@ -1,0 +1,15 @@
+name: Workflow tests
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start repository test container
+        run: docker run -d --name ai-intake-dev -v "$GITHUB_WORKSPACE:/workspace" -w /workspace python:3.11-slim sleep infinity
+      - name: Install dependencies inside container
+        run: docker exec ai-intake-dev pip install -r requirements.txt
+      - name: Run workflow tests inside container
+        run: docker exec ai-intake-dev pytest -q
