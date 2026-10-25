@@ -165,3 +165,40 @@ def test_category_and_priority_defaults_are_deterministic():
     assert response.status_code == 201
     assert response.json()["classification"]["category"] == "other"
     assert response.json()["classification"]["priority"] == "medium"
+
+
+
+@pytest.mark.parametrize('field', ['requester', 'subject', 'details'])
+def test_create_rejects_whitespace_only_fields(field):
+    response = create_intake(**{field: ' \t '})
+    assert response.status_code == 422
+
+
+def test_review_rejects_blank_reviewer_without_changing_state():
+    created = create_intake().json()
+    url = f"/intakes/{created['id']}"
+    response = client.post(f'{url}/review', json={'decision': 'approve', 'reviewer': '  '})
+    assert response.status_code == 422
+    assert client.get(url).json()['status'] == 'awaiting_review'
+
+
+def test_rejected_intake_cannot_be_approved_later():
+    created = create_intake().json()
+    url = f"/intakes/{created['id']}/review"
+    client.post(url, json={'decision': 'reject', 'reviewer': 'Reviewer'})
+    assert client.post(url, json={'decision': 'approve', 'reviewer': 'Other'}).status_code == 409
+
+
+def test_classifier_is_case_insensitive_and_high_priority_wins():
+    response = create_intake(subject='SOFTWARE question', details='URGENT: help when possible')
+    classification = response.json()['classification']
+    assert classification['category'] == 'it'
+    assert classification['priority'] == 'high'
+
+
+def test_classifier_summary_is_normalized_and_bounded():
+    response = create_intake(details=('word  ' * 100))
+    summary = response.json()['classification']['summary']
+    assert len(summary) == 200
+    assert summary.endswith('...')
+    assert '  ' not in summary
